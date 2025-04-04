@@ -2,8 +2,10 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
 
+// Leer las credenciales de Firebase desde la variable de entorno FIREBASE_CREDENTIALS
+const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+
 // Inicializar Firebase
-const serviceAccount = require('./damibot-76f13-firebase-adminsdk-fbsvc-53037372c0.json');
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     databaseURL: 'https://damibot-76f13-default-rtdb.firebaseio.com',
@@ -51,7 +53,6 @@ client.on('message', (message) => {
             break;
 
         case 1:
-            // No validamos el nombre y lote, simplemente lo guardamos
             const parts = text.split(' - ').join(' ').split(' ');
             const name = parts.slice(0, parts.length - 1).join(' '); // El resto se toma como nombre
             const lotNumber = parts[parts.length - 1]; // El último valor se toma como lote
@@ -64,7 +65,6 @@ client.on('message', (message) => {
             break;
 
         case 2:
-            // Validar cancha (solo 1, 2 o 3)
             if (text === '1' || text === '2' || text === '3') {
                 user.responses.court = text;
                 message.reply('⚠️ ¿Tenes invitados sin carnet para declarar? 👥👥\nResponde *SI* o *NO*');
@@ -75,23 +75,20 @@ client.on('message', (message) => {
             break;
 
         case 3:
-            // Validar respuesta SI o NO
             if (text === 'si' || text === 'sí') {
                 user.responses.hasGuests = 'Sí';
                 message.reply('➡️ ¿Cuántos invitados sin Carnet tenes ❓❓❓\nResponde con *1*, *2* o *3*');
                 user.step = 4;
             } else if (text === 'no') {
                 user.responses.hasGuests = 'No';
-                // Enviar resumen y guardar datos en Firebase (Escenario 1)
                 sendSummary(message);
-                user.step = 0; // Reiniciar flujo
+                user.step = 0;
             } else {
                 message.reply('Por favor responde con *SI* o *NO*');
             }
             break;
 
         case 4:
-            // Validar número de invitados (solo 1, 2 o 3)
             if (text === '1' || text === '2' || text === '3') {
                 user.responses.guestCount = text;
                 user.responses.guestDetails = [];
@@ -103,27 +100,22 @@ client.on('message', (message) => {
             break;
 
         case 5:
-            // Recoger los datos de los invitados
             const guestNumber = parseInt(user.responses.guestCount, 10);
             const guestIndex = user.responses.guestDetails.length;
 
             if (guestIndex < guestNumber) {
-                // Guardamos el nombre y número de lote del invitado
                 const guestData = text.split(' - ').join(' ').split(' ');
                 const guestName = guestData.slice(0, guestData.length - 1).join(' '); // El resto se toma como nombre
                 const guestLotNumber = guestData[guestData.length - 1]; // El último valor se toma como lote
                 user.responses.guestDetails.push(`${guestName} Lote ${guestLotNumber}`);
 
-                // Pedimos los detalles del siguiente invitado
                 if (user.responses.guestDetails.length < guestNumber) {
                     message.reply(`🙋🏼 Ingresa el nombre y número de lote del invitado ${guestIndex + 1} (Ejemplo: Juan Pérez Lote 123)`);
                 } else {
-                    // Todos los datos de los invitados recogidos, enviamos resumen y finalizamos el flujo
                     sendSummary(message);
-                    user.step = 0; // Reiniciar flujo
+                    user.step = 0;
                 }
             } else {
-                // Si se reciben más invitados de los que se indicaron, no avanzamos
                 message.reply('Parece que has ingresado más invitados de los que habías indicado. Por favor, verifica.');
             }
             break;
@@ -134,17 +126,14 @@ client.on('message', (message) => {
     }
 });
 
-// Función para recoger los detalles de los invitados
 function collectGuestDetails(message, guestCount) {
     const from = message.from;
     let user = userResponses[from];
 
-    // Recoger detalles del primer invitado
     message.reply(`🙋🏼 Ingresa el nombre y número de lote del primer invitado (Ejemplo: Juan Pérez Lote 123)`);
     user.step = 5;
 }
 
-// Función para enviar el resumen
 function sendSummary(message) {
     const from = message.from;
     const user = userResponses[from];
@@ -173,7 +162,6 @@ function sendSummary(message) {
 
     message.reply(summary);
 
-    // Guardar los datos en Firebase después de enviar el resumen
     const data = {
         name,
         lotNumber,
@@ -185,9 +173,8 @@ function sendSummary(message) {
     saveDataToFirebase(data);
 }
 
-// Función para guardar los datos en Firebase
 function saveDataToFirebase(data) {
-    const ref = db.ref('reservas');  // Usamos 'reservas' como referencia para almacenar las reservas
+    const ref = db.ref('reservas');
     const newReservaRef = ref.push();
     newReservaRef.set(data)
         .then(() => console.log('Datos guardados en Firebase'))
