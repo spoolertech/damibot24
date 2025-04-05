@@ -3,7 +3,9 @@ const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
 
 // Leer las credenciales de Firebase desde la variable de entorno FIREBASE_CREDENTIALS
-const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+const serviceAccount = JSON.parse(
+  process.env.FIREBASE_CREDENTIALS.replace(/\\n/g, '\n')
+);
 
 // Inicializar Firebase
 admin.initializeApp({
