@@ -1,18 +1,21 @@
 {
-  "dependencies": {
-    "firebase-admin": "^13.2.0",
-    "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.27.0"
-  },
-  "name": "botjs",
+  "name": "whatsapp-bot-padeles",
   "version": "1.0.0",
+  "description": "Bot de WhatsApp para gestión de reservas de canchas en Villanueva Padel.",
   "main": "main.js",
   "scripts": {
     "start": "node main.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon main.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["whatsapp", "bot", "firebase", "padel", "reservas"],
+  "author": "Tu Nombre",
   "license": "ISC",
-  "description": ""
+  "dependencies": {
+    "firebase-admin": "^11.10.1",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.23.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
 }
