@@ -11,8 +11,9 @@
   "author": "Tu Nombre",
   "license": "ISC",
   "dependencies": {
+    "express": "^4.17.1",
+    "qrcode": "^1.4.4",  // Cambié a qrcode
     "firebase-admin": "^11.10.1",
-    "qrcode-terminal": "^0.12.0",
     "whatsapp-web.js": "^1.23.0"
   },
   "devDependencies": {
