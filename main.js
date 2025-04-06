@@ -26,6 +26,9 @@ const app = express();
 // Habilitar que Express sirva archivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Bandera para asegurarse de que solo se genere un QR
+let qrGenerated = false;
+
 // Ruta principal que servirá la página con el QR
 app.get('/', (req, res) => {
   res.send('<h1>Generando el código QR...</h1>');
@@ -33,12 +36,17 @@ app.get('/', (req, res) => {
 
 // Ruta para generar y servir el QR como imagen
 app.get('/qr', (req, res) => {
+  if (qrGenerated) {
+    return res.send('QR ya generado. Recarga la página si no ves el QR.');
+  }
+
   client.on('qr', (qr) => {
     // Generar el código QR y devolverlo como imagen
     qrcode.toDataURL(qr, (err, url) => {
       if (err) {
         res.status(500).send('Error generando el QR');
       } else {
+        qrGenerated = true;  // Marcamos que el QR ha sido generado
         res.send(`
           <html>
             <head><title>Escanea el código QR</title></head>
@@ -69,6 +77,8 @@ client.initialize();
 let userResponses = {};
 
 client.on('message', (message) => {
+  console.log('Mensaje recibido:', message.body); // Log para verificar que los mensajes lleguen
+
   const from = message.from;
   const text = message.body.trim().toLowerCase();
 
