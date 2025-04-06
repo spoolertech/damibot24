@@ -1,6 +1,8 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const express = require('express');
+const qrcode = require('qrcode');
 const admin = require('firebase-admin');
+const path = require('path');
 
 // 🔐 Cargar credenciales de Firebase desde la variable de entorno
 const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
@@ -18,16 +20,44 @@ const client = new Client({
   authStrategy: new LocalAuth(),
 });
 
-client.on('qr', (qr) => {
-  qrcode.generate(qr, { small: true });
-  console.log('✅ Escanea el código QR para iniciar sesión');
+// Inicializar servidor Express
+const app = express();
+
+// Habilitar que Express sirva archivos estáticos
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Ruta principal que servirá la página con el QR
+app.get('/', (req, res) => {
+  res.send('<h1>Generando el código QR...</h1>');
 });
 
+// Ruta para generar y servir el QR como imagen
+app.get('/qr', (req, res) => {
+  client.on('qr', (qr) => {
+    // Generar el código QR y devolverlo como imagen
+    qrcode.toDataURL(qr, (err, url) => {
+      if (err) {
+        res.status(500).send('Error generando el QR');
+      } else {
+        res.send(`<h1>Escanea el código QR:</h1><img src="${url}" alt="QR Code">`);
+      }
+    });
+  });
+});
+
+// Iniciar el servidor web
+app.listen(3000, () => {
+  console.log('🚀 Servidor corriendo en http://localhost:3000');
+});
+
+// Inicializar WhatsApp Client
 client.on('ready', () => {
   console.log('🤖 BOT READY');
 });
 
-// Estados de usuarios
+client.initialize();
+
+// Variables y lógica del bot (tu lógica de respuesta del bot sigue igual)
 let userResponses = {};
 
 client.on('message', (message) => {
@@ -147,5 +177,3 @@ function saveToFirebase(data) {
     .then(() => console.log('📦 Reserva guardada en Firebase'))
     .catch((err) => console.error('❌ Error al guardar en Firebase:', err));
 }
-
-client.initialize();
