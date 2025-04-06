@@ -20,14 +20,40 @@ const client = new Client({
   authStrategy: new LocalAuth(),
 });
 
+// Verifica si el cliente está siendo inicializado correctamente
+client.on('qr', (qr) => {
+  console.log('QR recibido:', qr);  // Esto debería aparecer cuando se genera el QR
+  // Generar el código QR y devolverlo como imagen
+  qrcode.toDataURL(qr, (err, url) => {
+    if (err) {
+      console.error('Error generando el QR:', err);
+    } else {
+      console.log('Escanea el código QR para conectar.');
+    }
+  });
+});
+
+client.on('ready', () => {
+  console.log('🤖 BOT READY');
+});
+
+client.on('authenticated', (session) => {
+  console.log('Autenticación exitosa. Datos de la sesión:', session);
+});
+
+client.on('auth_failure', (msg) => {
+  console.log('Fallo en la autenticación:', msg);
+});
+
+client.on('disconnected', (reason) => {
+  console.log('Cliente desconectado:', reason);
+});
+
 // Inicializar servidor Express
 const app = express();
 
 // Habilitar que Express sirva archivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Bandera para asegurarse de que solo se genere un QR
-let qrGenerated = false;
 
 // Ruta principal que servirá la página con el QR
 app.get('/', (req, res) => {
@@ -36,17 +62,12 @@ app.get('/', (req, res) => {
 
 // Ruta para generar y servir el QR como imagen
 app.get('/qr', (req, res) => {
-  if (qrGenerated) {
-    return res.send('QR ya generado. Recarga la página si no ves el QR.');
-  }
-
   client.on('qr', (qr) => {
     // Generar el código QR y devolverlo como imagen
     qrcode.toDataURL(qr, (err, url) => {
       if (err) {
         res.status(500).send('Error generando el QR');
       } else {
-        qrGenerated = true;  // Marcamos que el QR ha sido generado
         res.send(`
           <html>
             <head><title>Escanea el código QR</title></head>
@@ -66,18 +87,11 @@ app.listen(3000, () => {
   console.log('🚀 Servidor corriendo en http://localhost:3000');
 });
 
-// Inicializar WhatsApp Client
-client.on('ready', () => {
-  console.log('🤖 BOT READY');
-});
-
-client.initialize();
-
 // Variables y lógica del bot (tu lógica de respuesta del bot sigue igual)
 let userResponses = {};
 
 client.on('message', (message) => {
-  console.log('Mensaje recibido:', message.body); // Log para verificar que los mensajes lleguen
+  console.log('Mensaje recibido:', message.body);  // Esto debería mostrar todos los mensajes
 
   const from = message.from;
   const text = message.body.trim().toLowerCase();
@@ -195,3 +209,6 @@ function saveToFirebase(data) {
     .then(() => console.log('📦 Reserva guardada en Firebase'))
     .catch((err) => console.error('❌ Error al guardar en Firebase:', err));
 }
+
+// Inicializar el cliente de WhatsApp
+client.initialize();
