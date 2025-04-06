@@ -39,7 +39,15 @@ app.get('/qr', (req, res) => {
       if (err) {
         res.status(500).send('Error generando el QR');
       } else {
-        res.send(`<h1>Escanea el código QR:</h1><img src="${url}" alt="QR Code">`);
+        res.send(`
+          <html>
+            <head><title>Escanea el código QR</title></head>
+            <body>
+              <h1>Escanea el código QR con WhatsApp</h1>
+              <img src="${url}" alt="QR Code">
+            </body>
+          </html>
+        `);
       }
     });
   });
