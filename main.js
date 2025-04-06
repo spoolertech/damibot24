@@ -20,35 +20,6 @@ const client = new Client({
   authStrategy: new LocalAuth(),
 });
 
-// Verifica si el cliente está siendo inicializado correctamente
-client.on('qr', (qr) => {
-  console.log('QR recibido:', qr);  // Esto debería aparecer cuando se genera el QR
-  // Generar el código QR y devolverlo como imagen
-  qrcode.toDataURL(qr, (err, url) => {
-    if (err) {
-      console.error('Error generando el QR:', err);
-    } else {
-      console.log('Escanea el código QR para conectar.');
-    }
-  });
-});
-
-client.on('ready', () => {
-  console.log('🤖 BOT READY');
-});
-
-client.on('authenticated', (session) => {
-  console.log('Autenticación exitosa. Datos de la sesión:', session);
-});
-
-client.on('auth_failure', (msg) => {
-  console.log('Fallo en la autenticación:', msg);
-});
-
-client.on('disconnected', (reason) => {
-  console.log('Cliente desconectado:', reason);
-});
-
 // Inicializar servidor Express
 const app = express();
 
@@ -87,12 +58,27 @@ app.listen(3000, () => {
   console.log('🚀 Servidor corriendo en http://localhost:3000');
 });
 
+// Inicializar WhatsApp Client
+client.on('ready', () => {
+  console.log('🤖 BOT READY');
+});
+
+// Verificar la autenticación y los errores
+client.on('auth_failure', (message) => {
+  console.error('❌ Error de autenticación:', message);
+});
+
+client.on('disconnected', (reason) => {
+  console.log('🚫 Desconectado de WhatsApp:', reason);
+});
+
+client.initialize();
+
 // Variables y lógica del bot (tu lógica de respuesta del bot sigue igual)
 let userResponses = {};
 
 client.on('message', (message) => {
-  console.log('Mensaje recibido:', message.body);  // Esto debería mostrar todos los mensajes
-
+  console.log('🔔 Nuevo mensaje recibido:', message.body); // Verificar que el bot reciba el mensaje
   const from = message.from;
   const text = message.body.trim().toLowerCase();
 
@@ -209,6 +195,3 @@ function saveToFirebase(data) {
     .then(() => console.log('📦 Reserva guardada en Firebase'))
     .catch((err) => console.error('❌ Error al guardar en Firebase:', err));
 }
-
-// Inicializar el cliente de WhatsApp
-client.initialize();
