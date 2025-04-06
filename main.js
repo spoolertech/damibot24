@@ -69,6 +69,7 @@ app.listen(3000, () => {
 // Inicializar WhatsApp Client
 client.on('ready', () => {
   console.log('🤖 BOT READY'); // Verifica que el bot está listo
+  startBot();  // Llamamos la función que inicia el bot cuando esté listo
 });
 
 // Verificar la autenticación y los errores
@@ -90,7 +91,6 @@ client.initialize();
 // Variables y lógica del bot (tu lógica de respuesta del bot sigue igual)
 let userResponses = {};
 
-// Captura los mensajes y verifica que estén llegando
 client.on('message', (message) => {
   console.log('🔔 Nuevo mensaje recibido:', message.body); // Verificar que el bot reciba el mensaje
 
@@ -209,4 +209,8 @@ function saveToFirebase(data) {
   ref.push(data)
     .then(() => console.log('📦 Reserva guardada en Firebase'))
     .catch((err) => console.error('❌ Error al guardar en Firebase:', err));
+}
+
+function startBot() {
+  console.log("🤖 El bot ahora está listo para recibir mensajes.");
 }
