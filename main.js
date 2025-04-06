@@ -26,6 +26,9 @@ const app = express();
 // Habilitar que Express sirva archivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Variable para controlar si ya se envió el QR
+let qrSent = false;
+
 // Ruta principal que servirá la página con el QR
 app.get('/', (req, res) => {
   res.send('<h1>Generando el código QR...</h1>');
@@ -33,24 +36,29 @@ app.get('/', (req, res) => {
 
 // Ruta para generar y servir el QR como imagen
 app.get('/qr', (req, res) => {
-  client.on('qr', (qr) => {
-    // Generar el código QR y devolverlo como imagen
-    qrcode.toDataURL(qr, (err, url) => {
-      if (err) {
-        res.status(500).send('Error generando el QR');
-      } else {
-        res.send(`
-          <html>
-            <head><title>Escanea el código QR</title></head>
-            <body>
-              <h1>Escanea el código QR con WhatsApp</h1>
-              <img src="${url}" alt="QR Code">
-            </body>
-          </html>
-        `);
-      }
+  if (!qrSent) {  // Solo enviamos el QR una vez
+    client.on('qr', (qr) => {
+      // Generar el código QR y devolverlo como imagen
+      qrcode.toDataURL(qr, (err, url) => {
+        if (err) {
+          res.status(500).send('Error generando el QR');
+        } else {
+          qrSent = true;  // Marcamos que el QR ha sido enviado
+          res.send(`
+            <html>
+              <head><title>Escanea el código QR</title></head>
+              <body>
+                <h1>Escanea el código QR con WhatsApp</h1>
+                <img src="${url}" alt="QR Code">
+              </body>
+            </html>
+          `);
+        }
+      });
     });
-  });
+  } else {
+    res.send('<h1>Ya has escaneado el QR. Conéctate a WhatsApp.</h1>');
+  }
 });
 
 // Iniciar el servidor web
@@ -60,7 +68,7 @@ app.listen(3000, () => {
 
 // Inicializar WhatsApp Client
 client.on('ready', () => {
-  console.log('🤖 BOT READY');
+  console.log('🤖 BOT READY'); // Verifica que el bot está listo
 });
 
 // Verificar la autenticación y los errores
@@ -72,13 +80,20 @@ client.on('disconnected', (reason) => {
   console.log('🚫 Desconectado de WhatsApp:', reason);
 });
 
+// Confirmación cuando la sesión está activa
+client.on('authenticated', () => {
+  console.log('📱 WhatsApp conectado y autenticado correctamente');
+});
+
 client.initialize();
 
 // Variables y lógica del bot (tu lógica de respuesta del bot sigue igual)
 let userResponses = {};
 
+// Captura los mensajes y verifica que estén llegando
 client.on('message', (message) => {
   console.log('🔔 Nuevo mensaje recibido:', message.body); // Verificar que el bot reciba el mensaje
+
   const from = message.from;
   const text = message.body.trim().toLowerCase();
 
