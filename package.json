@@ -7,12 +7,18 @@
     "start": "node main.js",
     "dev": "nodemon main.js"
   },
-  "keywords": ["whatsapp", "bot", "firebase", "padel", "reservas"],
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "firebase",
+    "padel",
+    "reservas"
+  ],
   "author": "Tu Nombre",
   "license": "ISC",
   "dependencies": {
     "express": "^4.17.1",
-    "qrcode": "^1.4.4",  // Cambié a qrcode
+    "qrcode": "^1.4.4",
     "firebase-admin": "^11.10.1",
     "whatsapp-web.js": "^1.23.0"
   },
