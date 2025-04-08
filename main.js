@@ -22,78 +22,81 @@ const client = new Client({
 
 // Inicializar servidor Express
 const app = express();
-
-// Habilitar que Express sirva archivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Variable para controlar si ya se envió el QR
-let qrSent = false;
+// ⚠️ Estados de QR y autenticación
+let lastQR = null;
+let isAuthenticated = false;
 
-// Ruta principal que servirá la página con el QR
-app.get('/', (req, res) => {
-  res.send('<h1>Generando el código QR...</h1>');
+// Escuchamos una sola vez y guardamos el QR
+client.on('qr', (qr) => {
+  qrcode.toDataURL(qr, (err, url) => {
+    if (!err) {
+      lastQR = url;
+      console.log('✅ QR generado correctamente');
+    } else {
+      console.error('❌ Error generando el QR:', err);
+    }
+  });
 });
 
-// Ruta para generar y servir el QR como imagen
-app.get('/qr', (req, res) => {
-  if (!qrSent) {  // Solo enviamos el QR una vez
-    client.on('qr', (qr) => {
-      // Generar el código QR y devolverlo como imagen
-      qrcode.toDataURL(qr, (err, url) => {
-        if (err) {
-          res.status(500).send('Error generando el QR');
-        } else {
-          qrSent = true;  // Marcamos que el QR ha sido enviado
-          res.send(`
-            <html>
-              <head><title>Escanea el código QR</title></head>
-              <body>
-                <h1>Escanea el código QR con WhatsApp</h1>
-                <img src="${url}" alt="QR Code">
-              </body>
-            </html>
-          `);
-        }
-      });
-    });
-  } else {
-    res.send('<h1>Ya has escaneado el QR. Conéctate a WhatsApp.</h1>');
-  }
+client.on('authenticated', () => {
+  isAuthenticated = true;
+  console.log('📱 WhatsApp conectado y autenticado correctamente');
 });
 
-// Iniciar el servidor web
-app.listen(3000, () => {
-  console.log('🚀 Servidor corriendo en http://localhost:3000');
-});
-
-// Inicializar WhatsApp Client
 client.on('ready', () => {
-  console.log('🤖 BOT READY'); // Verifica que el bot está listo
-  startBot();  // Llamamos la función que inicia el bot cuando esté listo
+  console.log('🤖 BOT READY');
+  startBot();
 });
 
-// Verificar la autenticación y los errores
-client.on('auth_failure', (message) => {
-  console.error('❌ Error de autenticación:', message);
+client.on('auth_failure', (msg) => {
+  console.error('❌ Error de autenticación:', msg);
 });
 
 client.on('disconnected', (reason) => {
   console.log('🚫 Desconectado de WhatsApp:', reason);
-});
-
-// Confirmación cuando la sesión está activa
-client.on('authenticated', () => {
-  console.log('📱 WhatsApp conectado y autenticado correctamente');
+  isAuthenticated = false;
+  lastQR = null;
 });
 
 client.initialize();
 
-// Variables y lógica del bot (tu lógica de respuesta del bot sigue igual)
+// Ruta base
+app.get('/', (req, res) => {
+  res.redirect('/qr');
+});
+
+// Ruta para mostrar el QR
+app.get('/qr', (req, res) => {
+  if (isAuthenticated) {
+    res.send('<h1>✅ Ya escaneaste el QR y el bot está conectado.</h1>');
+  } else if (lastQR) {
+    res.send(`
+      <html>
+        <head><title>Escanea el código QR</title></head>
+        <body>
+          <h1>Escanea el código QR con WhatsApp</h1>
+          <img src="${lastQR}" alt="QR Code">
+        </body>
+      </html>
+    `);
+  } else {
+    res.send('<h1>⏳ Generando código QR... intenta nuevamente en unos segundos.</h1>');
+  }
+});
+
+// Iniciar servidor en el puerto que Render asigna
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+});
+
+// Lógica del bot
 let userResponses = {};
 
 client.on('message', (message) => {
-  console.log('🔔 Nuevo mensaje recibido:', message.body); // Verificar que el bot reciba el mensaje
-
+  console.log('🔔 Nuevo mensaje:', message.body);
   const from = message.from;
   const text = message.body.trim().toLowerCase();
 
@@ -106,7 +109,7 @@ client.on('message', (message) => {
   switch (user.step) {
     case 0:
       if (text.startsWith('hola')) {
-        message.reply('👋🏻 ¡Bienvenido a Villanueva Padel! 🎾\n(San Isidro Labrador)\n👉🏻 Por favor, ingresa tu *Nombre* y *Número de Lote* en el siguiente formato: *Juan Pérez Lote 123*');
+        message.reply('👋🏻 ¡Bienvenido a Villanueva Padel! 🎾\n👉🏻 Ingresá tu *Nombre* y *Lote* (Ej: Juan Pérez Lote 123)');
         user.step = 1;
       }
       break;
@@ -114,36 +117,36 @@ client.on('message', (message) => {
     case 1:
       const parts = text.split(' - ').join(' ').split(' ');
       const name = parts.slice(0, parts.length - 1).join(' ');
-      const lotNumber = parts[parts.length - 1];
+      const lot = parts[parts.length - 1];
 
       user.responses.name = name;
-      user.responses.lotNumber = lotNumber;
+      user.responses.lotNumber = lot;
 
-      message.reply('🥳 Ahora Ingresa en qué cancha vas a jugar. Responde con *1*, *2* o *3*');
+      message.reply('🥳 ¿En qué cancha vas a jugar? Responde con *1*, *2* o *3*');
       user.step = 2;
       break;
 
     case 2:
       if (['1', '2', '3'].includes(text)) {
         user.responses.court = text;
-        message.reply('⚠️ ¿Tenés invitados sin carnet para declarar? 👥👥\nResponde *SI* o *NO*');
+        message.reply('⚠️ ¿Tenés invitados sin carnet? Responde *SI* o *NO*');
         user.step = 3;
       } else {
-        message.reply('Por favor ingresa *1*, *2* o *3* para la cancha.');
+        message.reply('Por favor, respondé con *1*, *2* o *3*');
       }
       break;
 
     case 3:
       if (text === 'si' || text === 'sí') {
         user.responses.hasGuests = 'Sí';
-        message.reply('➡️ ¿Cuántos invitados sin Carnet tenés❓ Responde con *1*, *2* o *3*');
+        message.reply('➡️ ¿Cuántos invitados sin carnet? (1, 2 o 3)');
         user.step = 4;
       } else if (text === 'no') {
         user.responses.hasGuests = 'No';
         sendSummary(message);
         user.step = 0;
       } else {
-        message.reply('Por favor responde con *SI* o *NO*');
+        message.reply('Responde con *SI* o *NO*');
       }
       break;
 
@@ -151,10 +154,10 @@ client.on('message', (message) => {
       if (['1', '2', '3'].includes(text)) {
         user.responses.guestCount = text;
         user.responses.guestDetails = [];
-        message.reply(`🙋🏼 Ingresá el nombre y número de lote del invitado 1 (Ej: Juan Pérez Lote 123)`);
+        message.reply('🙋🏼 Ingresá nombre y lote del invitado 1 (Ej: Juan Pérez Lote 123)');
         user.step = 5;
       } else {
-        message.reply('Por favor ingresa *1*, *2* o *3*');
+        message.reply('Por favor ingresá *1*, *2* o *3*');
       }
       break;
 
@@ -163,9 +166,9 @@ client.on('message', (message) => {
       const guestIndex = user.responses.guestDetails.length;
 
       if (guestIndex < guestCount) {
-        const guestData = text.split(' - ').join(' ').split(' ');
-        const guestName = guestData.slice(0, guestData.length - 1).join(' ');
-        const guestLot = guestData[guestData.length - 1];
+        const guestParts = text.split(' - ').join(' ').split(' ');
+        const guestName = guestParts.slice(0, guestParts.length - 1).join(' ');
+        const guestLot = guestParts[guestParts.length - 1];
 
         user.responses.guestDetails.push(`${guestName} Lote ${guestLot}`);
 
@@ -179,7 +182,7 @@ client.on('message', (message) => {
       break;
 
     default:
-      message.reply('❓ Lo siento, no entendí eso. Escribí "hola" para empezar.');
+      message.reply('❓ Escribí "hola" para empezar.');
       break;
   }
 });
@@ -192,14 +195,13 @@ function sendSummary(message) {
   let resumen = `🎾 *Detalle de la Reserva* 🎾\n\n🧍‍♂️ Nombre y Lote: *${name} ${lotNumber}*\n🏓 Cancha: *${court}*\n👥 Invitados: *${hasGuests}*\n`;
 
   if (hasGuests === 'Sí') {
-    resumen += `🔢 Cantidad de invitados: *${guestCount}*\n`;
+    resumen += `🔢 Cantidad: *${guestCount}*\n`;
     guestDetails.forEach((guest, i) => {
       resumen += `• Invitado ${i + 1}: ${guest}\n`;
     });
   }
 
   resumen += `\n✅ ¡Gracias por la info! Todo listo para jugar. 🎾`;
-
   message.reply(resumen);
   saveToFirebase(user.responses);
 }
@@ -212,5 +214,5 @@ function saveToFirebase(data) {
 }
 
 function startBot() {
-  console.log("🤖 El bot ahora está listo para recibir mensajes.");
+  console.log('🤖 El bot está listo para recibir mensajes');
 }
