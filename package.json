@@ -2,13 +2,13 @@
   "name": "damibot24",
   "version": "1.0.0",
   "main": "main.js",
-   "scripts": {
+  "type": "module",
+  "scripts": {
     "start": "node main.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "qrcode": "^1.5.1",
-    "whatsapp-web.js": "1.23.0",
-    "puppeteer": "19.11.1"
+    "firebase-admin": "^11.10.1",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.21.1"
   }
 }
