@@ -1,22 +1,20 @@
-import { Client, LocalAuth } from 'whatsapp-web.js';
-import qrcode from 'qrcode-terminal';
-import admin from 'firebase-admin';
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const admin = require('firebase-admin');
 
-// Leer credenciales desde variable de entorno
-const firebaseCredentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-
+// Inicializar Firebase desde variable de entorno
+const credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
 admin.initializeApp({
-    credential: admin.credential.cert(firebaseCredentials),
+    credential: admin.credential.cert(credentials),
     databaseURL: 'https://damibot-76f13-default-rtdb.firebaseio.com',
 });
 
 const db = admin.database();
 
+// Inicializar cliente de WhatsApp
 const client = new Client({
     authStrategy: new LocalAuth(),
 });
-
-let userResponses = {};
 
 client.on('qr', (qr) => {
     qrcode.generate(qr, { small: true });
@@ -27,7 +25,11 @@ client.on('ready', () => {
     console.log('BOT READY');
 });
 
-client.on('message', async (message) => {
+// Estados para controlar el flujo de preguntas
+let userResponses = {};
+
+// Manejo de mensajes entrantes
+client.on('message', (message) => {
     const from = message.from;
     const text = message.body.trim().toLowerCase();
 
@@ -59,12 +61,12 @@ client.on('message', async (message) => {
             break;
 
         case 2:
-            if (['1', '2', '3'].includes(text)) {
+            if (text === '1' || text === '2' || text === '3') {
                 user.responses.court = text;
                 message.reply('⚠️ ¿Tenes invitados sin carnet para declarar? 👥👥\nResponde *SI* o *NO*');
                 user.step = 3;
             } else {
-                message.reply('Por favor ingresa *1*, *2* o *3* para la cancha.');
+                message.reply('Por favor ingresa *1*, *2* o *3* para la cancha. Si no estás seguro, por favor repite.');
             }
             break;
 
@@ -75,7 +77,7 @@ client.on('message', async (message) => {
                 user.step = 4;
             } else if (text === 'no') {
                 user.responses.hasGuests = 'No';
-                sendSummary(message, user);
+                sendSummary(message);
                 user.step = 0;
             } else {
                 message.reply('Por favor responde con *SI* o *NO*');
@@ -83,10 +85,10 @@ client.on('message', async (message) => {
             break;
 
         case 4:
-            if (['1', '2', '3'].includes(text)) {
+            if (text === '1' || text === '2' || text === '3') {
                 user.responses.guestCount = text;
                 user.responses.guestDetails = [];
-                message.reply(`🙋🏼 Ingresa el nombre y número de lote del primer invitado (Ejemplo: Juan Pérez Lote 123)`);
+                collectGuestDetails(message, text);
                 user.step = 5;
             } else {
                 message.reply('Por favor ingresa *1*, *2* o *3* para la cantidad de invitados');
@@ -104,20 +106,32 @@ client.on('message', async (message) => {
                 user.responses.guestDetails.push(`${guestName} Lote ${guestLotNumber}`);
 
                 if (user.responses.guestDetails.length < guestNumber) {
-                    message.reply(`🙋🏼 Ingresa el nombre y número de lote del invitado ${guestIndex + 2}`);
+                    message.reply(`🙋🏼 Ingresa el nombre y número de lote del invitado ${guestIndex + 1} (Ejemplo: Juan Pérez Lote 123)`);
                 } else {
-                    sendSummary(message, user);
+                    sendSummary(message);
                     user.step = 0;
                 }
+            } else {
+                message.reply('Parece que has ingresado más invitados de los que habías indicado. Por favor, verifica.');
             }
             break;
 
         default:
             message.reply('❓ Lo siento, no entendí eso. Escribe "hola" para empezar.');
+            break;
     }
 });
 
-function sendSummary(message, user) {
+function collectGuestDetails(message, guestCount) {
+    const from = message.from;
+    let user = userResponses[from];
+    message.reply(`🙋🏼 Ingresa el nombre y número de lote del primer invitado (Ejemplo: Juan Pérez Lote 123)`);
+    user.step = 5;
+}
+
+function sendSummary(message) {
+    const from = message.from;
+    const user = userResponses[from];
     const { name, lotNumber, court, hasGuests, guestCount, guestDetails } = user.responses;
 
     let summary = `🎾 Detalle de la Reserva 🎾\n\nNombre y Lote: *${name} ${lotNumber}*\nCancha Reservada: *Cancha ${court}*\nInvitados: *${hasGuests === 'No' ? 'NO' : 'SI'}*\n`;
@@ -129,28 +143,38 @@ function sendSummary(message, user) {
         });
     }
 
-    summary += `\n🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾
+    summary += `
+🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾
 Gracias por la info!!! ❤️ Todo listo! Ahora podés comenzar a jugar‼️.
 
 * 🤔 Recordá, si todavía no pasaste, que si querés abonar en efectivo podes acercarte a la oficina y hacerlo. De lo contrario te lo podemos cargar por expensas! 📩
 
-* Este sistema NO REEMPLAZA a la reserva por PADELINK, si no la hiciste, hacela así nadie te pide la cancha 😡 mientras estes jugando 🏓.
+* Este sistema NO REEMPLAZA a la reserva por PADELINK, si no la hiciste, hacela así nadie te pide la cancha 😡 mientras estés jugando 🏓.
 
 Gracias por elegirnos 😍😍!! Disfruten el partido!!!
+
 🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾`;
 
     message.reply(summary);
 
-    const data = { name, lotNumber, court, hasGuests, guestCount, guestDetails };
+    const data = {
+        name,
+        lotNumber,
+        court,
+        hasGuests,
+        guestCount,
+        guestDetails,
+    };
     saveDataToFirebase(data);
 }
 
 function saveDataToFirebase(data) {
     const ref = db.ref('reservas');
-    const newRef = ref.push();
-    newRef.set(data)
-        .then(() => console.log('✅ Datos guardados en Firebase'))
-        .catch((err) => console.error('❌ Error al guardar en Firebase:', err));
+    const newReservaRef = ref.push();
+    newReservaRef.set(data)
+        .then(() => console.log('Datos guardados en Firebase'))
+        .catch((error) => console.log('Error al guardar en Firebase: ', error));
 }
 
+// Iniciar el cliente
 client.initialize();
