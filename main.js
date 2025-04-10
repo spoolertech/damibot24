@@ -1,7 +1,6 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
-const express = require('express'); // 🔥 Agregado para Render
 
 // Inicializar Firebase desde variable de entorno
 const credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
@@ -19,12 +18,15 @@ const client = new Client({
 
 client.on('qr', (qr) => {
     qrcode.generate(qr, { small: true });
-    console.log('Escanea el código QR');
+    console.log('Escanea el código QR con tu celular 📲');
 });
 
 client.on('ready', () => {
-    console.log('BOT READY');
+    console.log('BOT READY ✅');
 });
+
+// Estado global para saber si el bot está activo
+let botActivo = false;
 
 // Estados para controlar el flujo de preguntas
 let userResponses = {};
@@ -33,6 +35,19 @@ let userResponses = {};
 client.on('message', (message) => {
     const from = message.from;
     const text = message.body.trim().toLowerCase();
+
+    // Activar el bot con el mensaje "iniciar"
+    if (text === 'iniciar' && !botActivo) {
+        botActivo = true;
+        message.reply('✅ Bot iniciado. Ahora podés escribir *hola* para empezar.');
+        return;
+    }
+
+    // Si el bot no está activo aún, informar al usuario
+    if (!botActivo) {
+        message.reply('🚫 El bot aún no está activo. Escribí *iniciar* para arrancarlo.');
+        return;
+    }
 
     if (!userResponses[from]) {
         userResponses[from] = { step: 0, responses: {} };
@@ -174,19 +189,9 @@ function saveDataToFirebase(data) {
     const ref = db.ref('reservas');
     const newReservaRef = ref.push();
     newReservaRef.set(data)
-        .then(() => console.log('Datos guardados en Firebase'))
-        .catch((error) => console.log('Error al guardar en Firebase: ', error));
+        .then(() => console.log('✅ Datos guardados en Firebase'))
+        .catch((error) => console.log('❌ Error al guardar en Firebase: ', error));
 }
 
 // Iniciar el cliente de WhatsApp
 client.initialize();
-
-// 🎯 Servidor Express mínimo para que Render mantenga vivo el proceso
-const app = express();
-app.get('/', (req, res) => {
-    res.send('Bot de WhatsApp está corriendo!');
-});
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor web escuchando en el puerto ${PORT}`);
-});
