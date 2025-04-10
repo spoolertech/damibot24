@@ -1,6 +1,15 @@
+const express = require('express');
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const qrcode = require('qrcode');
 const admin = require('firebase-admin');
+const bodyParser = require('body-parser');
+
+// Inicializar Express
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Middleware para formularios
+app.use(bodyParser.urlencoded({ extended: true }));
 
 // Inicializar Firebase desde variable de entorno
 const credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
@@ -11,125 +20,153 @@ admin.initializeApp({
 
 const db = admin.database();
 
-// Inicializar cliente de WhatsApp
-const client = new Client({
-    authStrategy: new LocalAuth(),
-});
+// Cliente de WhatsApp (pero no lo inicializamos aún)
+let client;
+let qrCodeData;
 
-client.on('qr', (qr) => {
-    qrcode.generate(qr, { small: true });
-    console.log('Escanea el código QR');
-});
+// Mostrar QR y botón "Iniciar Bot"
+app.get('/', async (req, res) => {
+    // Creamos el cliente si no existe
+    if (!client) {
+        client = new Client({ authStrategy: new LocalAuth() });
 
-client.on('ready', () => {
-    console.log('BOT READY');
-});
+        client.on('qr', async qr => {
+            qrCodeData = await qrcode.toDataURL(qr);
+        });
 
-// Estados para controlar el flujo de preguntas
-let userResponses = {};
-
-// Manejo de mensajes entrantes
-client.on('message', (message) => {
-    const from = message.from;
-    const text = message.body.trim().toLowerCase();
-
-    if (!userResponses[from]) {
-        userResponses[from] = { step: 0, responses: {} };
+        client.initialize();
     }
 
-    let user = userResponses[from];
-    let step = user.step;
+    // Esperamos un poco a que se genere el QR
+    const html = `
+        <html>
+        <body style="text-align:center;font-family:sans-serif;padding-top:50px;">
+            <h1>Escanea el código QR para iniciar sesión</h1>
+            ${qrCodeData ? `<img src="${qrCodeData}" />` : '<p>Generando QR...</p>'}
+            <form action="/start-bot" method="POST" style="margin-top:30px;">
+                <button type="submit" style="padding:10px 20px;font-size:16px;">Iniciar Bot</button>
+            </form>
+        </body>
+        </html>
+    `;
+    res.send(html);
+});
 
-    switch (step) {
-        case 0:
-            if (text === 'hola' || text === 'hola,') {
-                message.reply('👋🏻 ¡Bienvenido a Villanueva Padel! 🎾\n(San Isidro Labrador)\n👉🏻 Por favor, ingresa tu *Nombre* y *Número de Lote* en el siguiente formato: *Juan Pérez Lote 123*');
-                user.step = 1;
-            }
-            break;
+// Ruta POST para iniciar el bot
+app.post('/start-bot', (req, res) => {
+    if (!client) return res.send('El cliente no está inicializado aún.');
 
-        case 1:
-            const parts = text.split(' - ').join(' ').split(' ');
-            const name = parts.slice(0, parts.length - 1).join(' ');
-            const lotNumber = parts[parts.length - 1];
+    client.on('ready', () => {
+        console.log('BOT READY');
+    });
 
-            user.responses.name = name;
-            user.responses.lotNumber = lotNumber;
+    // Lógica del bot (como en tu código original)
+    let userResponses = {};
 
-            message.reply('🥳 Ahora Ingresa en qué cancha vas a jugar. Responde con *1*, *2* o *3*');
-            user.step = 2;
-            break;
+    client.on('message', (message) => {
+        const from = message.from;
+        const text = message.body.trim().toLowerCase();
 
-        case 2:
-            if (text === '1' || text === '2' || text === '3') {
-                user.responses.court = text;
-                message.reply('⚠️ ¿Tenes invitados sin carnet para declarar? 👥👥\nResponde *SI* o *NO*');
-                user.step = 3;
-            } else {
-                message.reply('Por favor ingresa *1*, *2* o *3* para la cancha. Si no estás seguro, por favor repite.');
-            }
-            break;
+        if (!userResponses[from]) {
+            userResponses[from] = { step: 0, responses: {} };
+        }
 
-        case 3:
-            if (text === 'si' || text === 'sí') {
-                user.responses.hasGuests = 'Sí';
-                message.reply('➡️ ¿Cuántos invitados sin Carnet tenes ❓❓❓\nResponde con *1*, *2* o *3*');
-                user.step = 4;
-            } else if (text === 'no') {
-                user.responses.hasGuests = 'No';
-                sendSummary(message);
-                user.step = 0;
-            } else {
-                message.reply('Por favor responde con *SI* o *NO*');
-            }
-            break;
+        let user = userResponses[from];
+        let step = user.step;
 
-        case 4:
-            if (text === '1' || text === '2' || text === '3') {
-                user.responses.guestCount = text;
-                user.responses.guestDetails = [];
-                collectGuestDetails(message, text);
-                user.step = 5;
-            } else {
-                message.reply('Por favor ingresa *1*, *2* o *3* para la cantidad de invitados');
-            }
-            break;
-
-        case 5:
-            const guestNumber = parseInt(user.responses.guestCount, 10);
-            const guestIndex = user.responses.guestDetails.length;
-
-            if (guestIndex < guestNumber) {
-                const guestData = text.split(' - ').join(' ').split(' ');
-                const guestName = guestData.slice(0, guestData.length - 1).join(' ');
-                const guestLotNumber = guestData[guestData.length - 1];
-                user.responses.guestDetails.push(`${guestName} Lote ${guestLotNumber}`);
-
-                if (user.responses.guestDetails.length < guestNumber) {
-                    message.reply(`🙋🏼 Ingresa el nombre y número de lote del invitado ${guestIndex + 1} (Ejemplo: Juan Pérez Lote 123)`);
-                } else {
-                    sendSummary(message);
-                    user.step = 0;
+        switch (step) {
+            case 0:
+                if (text === 'hola' || text === 'hola,') {
+                    message.reply('👋🏻 ¡Bienvenido a Villanueva Padel! 🎾\n(San Isidro Labrador)\n👉🏻 Por favor, ingresa tu *Nombre* y *Número de Lote* en el siguiente formato: *Juan Pérez Lote 123*');
+                    user.step = 1;
                 }
-            } else {
-                message.reply('Parece que has ingresado más invitados de los que habías indicado. Por favor, verifica.');
-            }
-            break;
+                break;
 
-        default:
-            message.reply('❓ Lo siento, no entendí eso. Escribe "hola" para empezar.');
-            break;
-    }
+            case 1:
+                const parts = text.split(' - ').join(' ').split(' ');
+                const name = parts.slice(0, parts.length - 1).join(' ');
+                const lotNumber = parts[parts.length - 1];
+
+                user.responses.name = name;
+                user.responses.lotNumber = lotNumber;
+
+                message.reply('🥳 Ahora Ingresa en qué cancha vas a jugar. Responde con *1*, *2* o *3*');
+                user.step = 2;
+                break;
+
+            case 2:
+                if (text === '1' || text === '2' || text === '3') {
+                    user.responses.court = text;
+                    message.reply('⚠️ ¿Tenes invitados sin carnet para declarar? 👥👥\nResponde *SI* o *NO*');
+                    user.step = 3;
+                } else {
+                    message.reply('Por favor ingresa *1*, *2* o *3* para la cancha. Si no estás seguro, por favor repite.');
+                }
+                break;
+
+            case 3:
+                if (text === 'si' || text === 'sí') {
+                    user.responses.hasGuests = 'Sí';
+                    message.reply('➡️ ¿Cuántos invitados sin Carnet tenes ❓❓❓\nResponde con *1*, *2* o *3*');
+                    user.step = 4;
+                } else if (text === 'no') {
+                    user.responses.hasGuests = 'No';
+                    sendSummary(message, userResponses);
+                    user.step = 0;
+                } else {
+                    message.reply('Por favor responde con *SI* o *NO*');
+                }
+                break;
+
+            case 4:
+                if (text === '1' || text === '2' || text === '3') {
+                    user.responses.guestCount = text;
+                    user.responses.guestDetails = [];
+                    collectGuestDetails(message, text, userResponses);
+                    user.step = 5;
+                } else {
+                    message.reply('Por favor ingresa *1*, *2* o *3* para la cantidad de invitados');
+                }
+                break;
+
+            case 5:
+                const guestNumber = parseInt(user.responses.guestCount, 10);
+                const guestIndex = user.responses.guestDetails.length;
+
+                if (guestIndex < guestNumber) {
+                    const guestData = text.split(' - ').join(' ').split(' ');
+                    const guestName = guestData.slice(0, guestData.length - 1).join(' ');
+                    const guestLotNumber = guestData[guestData.length - 1];
+                    user.responses.guestDetails.push(`${guestName} Lote ${guestLotNumber}`);
+
+                    if (user.responses.guestDetails.length < guestNumber) {
+                        message.reply(`🙋🏼 Ingresa el nombre y número de lote del invitado ${guestIndex + 1} (Ejemplo: Juan Pérez Lote 123)`);
+                    } else {
+                        sendSummary(message, userResponses);
+                        user.step = 0;
+                    }
+                } else {
+                    message.reply('Parece que has ingresado más invitados de los que habías indicado. Por favor, verifica.');
+                }
+                break;
+
+            default:
+                message.reply('❓ Lo siento, no entendí eso. Escribe "hola" para empezar.');
+                break;
+        }
+    });
+
+    res.send('✅ Bot iniciado. Ya podés enviar mensajes desde WhatsApp.');
 });
 
-function collectGuestDetails(message, guestCount) {
+function collectGuestDetails(message, guestCount, userResponses) {
     const from = message.from;
     let user = userResponses[from];
     message.reply(`🙋🏼 Ingresa el nombre y número de lote del primer invitado (Ejemplo: Juan Pérez Lote 123)`);
     user.step = 5;
 }
 
-function sendSummary(message) {
+function sendSummary(message, userResponses) {
     const from = message.from;
     const user = userResponses[from];
     const { name, lotNumber, court, hasGuests, guestCount, guestDetails } = user.responses;
@@ -144,6 +181,7 @@ function sendSummary(message) {
     }
 
     summary += `
+
 🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾
 Gracias por la info!!! ❤️ Todo listo! Ahora podés comenzar a jugar‼️.
 
@@ -176,5 +214,7 @@ function saveDataToFirebase(data) {
         .catch((error) => console.log('Error al guardar en Firebase: ', error));
 }
 
-// Iniciar el cliente
-client.initialize();
+// Iniciar servidor Express
+app.listen(port, () => {
+    console.log(`Servidor corriendo en http://localhost:${port}`);
+});
