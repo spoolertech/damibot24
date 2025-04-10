@@ -1,18 +1,17 @@
 {
-  "name": "damibot24",
+  "dependencies": {
+    "firebase-admin": "^13.2.0",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.27.0"
+  },
+  "name": "botjs",
   "version": "1.0.0",
-  "description": "Bot de WhatsApp para reservas en Villanueva Padel",
   "main": "main.js",
   "scripts": {
-    "start": "node main.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "express": "^4.19.2",
-    "firebase-admin": "^13.2.0",
-    "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.27.0"
-  }
+  "description": ""
 }
