@@ -3,7 +3,7 @@ const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
 
 // Inicializar Firebase
-const serviceAccount = require('./damibot-76f13-firebase-adminsdk-fbsvc-53037372c0.json');
+const serviceAccount = require('./damibot-76f13-firebase-adminsdk-fbsvc-635a67187e.json');
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     databaseURL: 'https://damibot-76f13-default-rtdb.firebaseio.com',
