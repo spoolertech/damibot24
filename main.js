@@ -1,6 +1,7 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const admin = require('firebase-admin');
+const express = require('express');
 
 // Inicializar Firebase desde variable de entorno
 const credentials = JSON.parse(process.env.FIREBASE_CREDENTIALS);
@@ -8,7 +9,6 @@ admin.initializeApp({
     credential: admin.credential.cert(credentials),
     databaseURL: 'https://damibot-76f13-default-rtdb.firebaseio.com',
 });
-
 const db = admin.database();
 
 // Inicializar cliente de WhatsApp
@@ -16,36 +16,34 @@ const client = new Client({
     authStrategy: new LocalAuth(),
 });
 
+let botActivo = false;
+
 client.on('qr', (qr) => {
     qrcode.generate(qr, { small: true });
-    console.log('Escanea el código QR con tu celular 📲');
+    console.log('✅ Escaneá el código QR para vincular WhatsApp');
+    console.log('🟢 Luego, mandá el mensaje *iniciar* desde tu WhatsApp para activar el bot');
 });
 
 client.on('ready', () => {
-    console.log('BOT READY ✅');
+    console.log('🤖 BOT CONECTADO Y LISTO (esperando comando "iniciar")');
 });
-
-// Estado global para saber si el bot está activo
-let botActivo = false;
 
 // Estados para controlar el flujo de preguntas
 let userResponses = {};
 
-// Manejo de mensajes entrantes
 client.on('message', (message) => {
     const from = message.from;
     const text = message.body.trim().toLowerCase();
 
-    // Activar el bot con el mensaje "iniciar"
-    if (text === 'iniciar' && !botActivo) {
+    // Activación manual del bot
+    if (text === 'iniciar') {
         botActivo = true;
-        message.reply('✅ Bot iniciado. Ahora podés escribir *hola* para empezar.');
+        message.reply('✅ Bot activado. Ya podés escribir *hola* para comenzar el proceso de reserva.');
         return;
     }
 
-    // Si el bot no está activo aún, informar al usuario
     if (!botActivo) {
-        message.reply('🚫 El bot aún no está activo. Escribí *iniciar* para arrancarlo.');
+        message.reply('⚠️ El bot aún no fue activado. Escribí *iniciar* para ponerlo en marcha.');
         return;
     }
 
@@ -160,7 +158,6 @@ function sendSummary(message) {
     }
 
     summary += `
-
 🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾
 Gracias por la info!!! ❤️ Todo listo! Ahora podés comenzar a jugar‼️.
 
@@ -193,5 +190,15 @@ function saveDataToFirebase(data) {
         .catch((error) => console.log('❌ Error al guardar en Firebase: ', error));
 }
 
-// Iniciar el cliente de WhatsApp
+// Iniciar cliente de WhatsApp
 client.initialize();
+
+// Iniciar servidor Express para mantener activo en Render
+const app = express();
+app.get('/', (req, res) => {
+    res.send('Bot online ✅');
+});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`🌐 Servidor web escuchando en el puerto ${PORT}`);
+});
