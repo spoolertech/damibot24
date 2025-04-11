@@ -1,28 +1,16 @@
 {
-  "name": "whatsapp-bot",
+  "name": "damibot24",
   "version": "1.0.0",
-  "description": "Bot de WhatsApp.",
   "main": "main.js",
   "scripts": {
-    "start": "node main.js",
-    "dev": "nodemon main.js"
+    "start": "node main.js"
   },
-  "keywords": [
-    "whatsapp",
-    "bot",
-    "firebase",
-    "padel",
-    "reservas"
-  ],
-  "author": "Jhon Curry",
-  "license": "ISC",
   "dependencies": {
-    "express": "^4.17.1",
-    "qrcode": "^1.4.4",
+    "express": "^4.18.2",
     "firebase-admin": "^11.10.1",
-    "whatsapp-web.js": "^1.23.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
+    "path": "^0.12.7",
+    "qrcode": "^1.5.1",
+    "whatsapp-web.js": "^1.23.0",
+    "wwebjs-remote-auth": "^1.3.0"
   }
 }
