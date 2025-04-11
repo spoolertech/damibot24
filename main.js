@@ -1,198 +1,179 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const express = require('express');
+const qrcode = require('qrcode');
 const admin = require('firebase-admin');
+const path = require('path');
+
+// 🔐 Cargar credenciales de Firebase desde la variable de entorno
+const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
 
 // Inicializar Firebase
-const serviceAccount = require('./damibot-76f13-firebase-adminsdk-fbsvc-635a67187e.json');
 admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: 'https://damibot-76f13-default-rtdb.firebaseio.com',
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: 'https://damibot-76f13-default-rtdb.firebaseio.com',
 });
 
 const db = admin.database();
 
 // Inicializar cliente de WhatsApp
 const client = new Client({
-    authStrategy: new LocalAuth(),
+  authStrategy: new LocalAuth(),
 });
 
-client.on('qr', (qr) => {
-    qrcode.generate(qr, { small: true });
-    console.log('Escanea el código QR');
+// Inicializar servidor Express
+const app = express();
+
+// Habilitar que Express sirva archivos estáticos
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Ruta principal que servirá la página con el QR
+app.get('/', (req, res) => {
+  res.send('<h1>Generando el código QR...</h1>');
 });
 
+// Ruta para generar y servir el QR como imagen
+app.get('/qr', (req, res) => {
+  client.on('qr', (qr) => {
+    // Generar el código QR y devolverlo como imagen
+    qrcode.toDataURL(qr, (err, url) => {
+      if (err) {
+        res.status(500).send('Error generando el QR');
+      } else {
+        res.send(`<h1>Escanea el código QR:</h1><img src="${url}" alt="QR Code">`);
+      }
+    });
+  });
+});
+
+// Iniciar el servidor web
+app.listen(3000, () => {
+  console.log('🚀 Servidor corriendo en http://localhost:3000');
+});
+
+// Inicializar WhatsApp Client
 client.on('ready', () => {
-    console.log('BOT READY');
+  console.log('🤖 BOT READY');
 });
 
-// Estados para controlar el flujo de preguntas
+client.initialize();
+
+// Variables y lógica del bot (tu lógica de respuesta del bot sigue igual)
 let userResponses = {};
 
-// Manejo de mensajes entrantes
 client.on('message', (message) => {
-    const from = message.from;
-    const text = message.body.trim().toLowerCase();
+  const from = message.from;
+  const text = message.body.trim().toLowerCase();
 
-    // Si es un nuevo usuario, inicializamos su estado
-    if (!userResponses[from]) {
-        userResponses[from] = { step: 0, responses: {} };
-    }
+  if (!userResponses[from]) {
+    userResponses[from] = { step: 0, responses: {} };
+  }
 
-    let user = userResponses[from];
-    let step = user.step;
+  const user = userResponses[from];
 
-    // Lógica de preguntas y respuestas
-    switch (step) {
-        case 0:
-            if (text === 'hola' || text === 'hola,') {
-                message.reply('👋🏻 ¡Bienvenido a Villanueva Padel! 🎾\n(San Isidro Labrador)\n👉🏻 Por favor, ingresa tu *Nombre* y *Número de Lote* en el siguiente formato: *Juan Pérez Lote 123*');
-                user.step = 1;
-            }
-            break;
+  switch (user.step) {
+    case 0:
+      if (text.startsWith('hola')) {
+        message.reply('👋🏻 ¡Bienvenido a Villanueva Padel! 🎾\n(San Isidro Labrador)\n👉🏻 Por favor, ingresa tu *Nombre* y *Número de Lote* en el siguiente formato: *Juan Pérez Lote 123*');
+        user.step = 1;
+      }
+      break;
 
-        case 1:
-            // No validamos el nombre y lote, simplemente lo guardamos
-            const parts = text.split(' - ').join(' ').split(' ');
-            const name = parts.slice(0, parts.length - 1).join(' '); // El resto se toma como nombre
-            const lotNumber = parts[parts.length - 1]; // El último valor se toma como lote
+    case 1:
+      const parts = text.split(' - ').join(' ').split(' ');
+      const name = parts.slice(0, parts.length - 1).join(' ');
+      const lotNumber = parts[parts.length - 1];
 
-            user.responses.name = name;
-            user.responses.lotNumber = lotNumber;
+      user.responses.name = name;
+      user.responses.lotNumber = lotNumber;
 
-            message.reply('🥳 Ahora Ingresa en qué cancha vas a jugar. Responde con *1*, *2* o *3*');
-            user.step = 2;
-            break;
+      message.reply('🥳 Ahora Ingresa en qué cancha vas a jugar. Responde con *1*, *2* o *3*');
+      user.step = 2;
+      break;
 
-        case 2:
-            // Validar cancha (solo 1, 2 o 3)
-            if (text === '1' || text === '2' || text === '3') {
-                user.responses.court = text;
-                message.reply('⚠️ ¿Tenes invitados sin carnet para declarar? 👥👥\nResponde *SI* o *NO*');
-                user.step = 3;
-            } else {
-                message.reply('Por favor ingresa *1*, *2* o *3* para la cancha. Si no estás seguro, por favor repite.');
-            }
-            break;
+    case 2:
+      if (['1', '2', '3'].includes(text)) {
+        user.responses.court = text;
+        message.reply('⚠️ ¿Tenés invitados sin carnet para declarar? 👥👥\nResponde *SI* o *NO*');
+        user.step = 3;
+      } else {
+        message.reply('Por favor ingresa *1*, *2* o *3* para la cancha.');
+      }
+      break;
 
-        case 3:
-            // Validar respuesta SI o NO
-            if (text === 'si' || text === 'sí') {
-                user.responses.hasGuests = 'Sí';
-                message.reply('➡️ ¿Cuántos invitados sin Carnet tenes ❓❓❓\nResponde con *1*, *2* o *3*');
-                user.step = 4;
-            } else if (text === 'no') {
-                user.responses.hasGuests = 'No';
-                // Enviar resumen y guardar datos en Firebase (Escenario 1)
-                sendSummary(message);
-                user.step = 0; // Reiniciar flujo
-            } else {
-                message.reply('Por favor responde con *SI* o *NO*');
-            }
-            break;
+    case 3:
+      if (text === 'si' || text === 'sí') {
+        user.responses.hasGuests = 'Sí';
+        message.reply('➡️ ¿Cuántos invitados sin Carnet tenés❓ Responde con *1*, *2* o *3*');
+        user.step = 4;
+      } else if (text === 'no') {
+        user.responses.hasGuests = 'No';
+        sendSummary(message);
+        user.step = 0;
+      } else {
+        message.reply('Por favor responde con *SI* o *NO*');
+      }
+      break;
 
-        case 4:
-            // Validar número de invitados (solo 1, 2 o 3)
-            if (text === '1' || text === '2' || text === '3') {
-                user.responses.guestCount = text;
-                user.responses.guestDetails = [];
-                collectGuestDetails(message, text); // Recoger detalles de los invitados
-                user.step = 5;
-            } else {
-                message.reply('Por favor ingresa *1*, *2* o *3* para la cantidad de invitados');
-            }
-            break;
+    case 4:
+      if (['1', '2', '3'].includes(text)) {
+        user.responses.guestCount = text;
+        user.responses.guestDetails = [];
+        message.reply(`🙋🏼 Ingresá el nombre y número de lote del invitado 1 (Ej: Juan Pérez Lote 123)`);
+        user.step = 5;
+      } else {
+        message.reply('Por favor ingresa *1*, *2* o *3*');
+      }
+      break;
 
-        case 5:
-            // Recoger los datos de los invitados
-            const guestNumber = parseInt(user.responses.guestCount, 10);
-            const guestIndex = user.responses.guestDetails.length;
+    case 5:
+      const guestCount = parseInt(user.responses.guestCount, 10);
+      const guestIndex = user.responses.guestDetails.length;
 
-            if (guestIndex < guestNumber) {
-                // Guardamos el nombre y número de lote del invitado
-                const guestData = text.split(' - ').join(' ').split(' ');
-                const guestName = guestData.slice(0, guestData.length - 1).join(' '); // El resto se toma como nombre
-                const guestLotNumber = guestData[guestData.length - 1]; // El último valor se toma como lote
-                user.responses.guestDetails.push(`${guestName} Lote ${guestLotNumber}`);
+      if (guestIndex < guestCount) {
+        const guestData = text.split(' - ').join(' ').split(' ');
+        const guestName = guestData.slice(0, guestData.length - 1).join(' ');
+        const guestLot = guestData[guestData.length - 1];
 
-                // Pedimos los detalles del siguiente invitado
-                if (user.responses.guestDetails.length < guestNumber) {
-                    message.reply(`🙋🏼 Ingresa el nombre y número de lote del invitado ${guestIndex + 1} (Ejemplo: Juan Pérez Lote 123)`);
-                } else {
-                    // Todos los datos de los invitados recogidos, enviamos resumen y finalizamos el flujo
-                    sendSummary(message);
-                    user.step = 0; // Reiniciar flujo
-                }
-            } else {
-                // Si se reciben más invitados de los que se indicaron, no avanzamos
-                message.reply('Parece que has ingresado más invitados de los que habías indicado. Por favor, verifica.');
-            }
-            break;
+        user.responses.guestDetails.push(`${guestName} Lote ${guestLot}`);
 
-        default:
-            message.reply('❓ Lo siento, no entendí eso. Escribe "hola" para empezar.');
-            break;
-    }
+        if (user.responses.guestDetails.length < guestCount) {
+          message.reply(`🙋🏼 Ingresá el nombre y lote del invitado ${guestIndex + 2}`);
+        } else {
+          sendSummary(message);
+          user.step = 0;
+        }
+      }
+      break;
+
+    default:
+      message.reply('❓ Lo siento, no entendí eso. Escribí "hola" para empezar.');
+      break;
+  }
 });
 
-// Función para recoger los detalles de los invitados
-function collectGuestDetails(message, guestCount) {
-    const from = message.from;
-    let user = userResponses[from];
-
-    // Recoger detalles del primer invitado
-    message.reply(`🙋🏼 Ingresa el nombre y número de lote del primer invitado (Ejemplo: Juan Pérez Lote 123)`);
-    user.step = 5;
-}
-
-// Función para enviar el resumen
 function sendSummary(message) {
-    const from = message.from;
-    const user = userResponses[from];
-    const { name, lotNumber, court, hasGuests, guestCount, guestDetails } = user.responses;
+  const from = message.from;
+  const user = userResponses[from];
+  const { name, lotNumber, court, hasGuests, guestCount, guestDetails } = user.responses;
 
-    let summary = `🎾 Detalle de la Reserva 🎾\n\nNombre y Lote: *${name} ${lotNumber}*\nCancha Reservada: *Cancha ${court}*\nInvitados: *${hasGuests === 'No' ? 'NO' : 'SI'}*\n`;
+  let resumen = `🎾 *Detalle de la Reserva* 🎾\n\n🧍‍♂️ Nombre y Lote: *${name} ${lotNumber}*\n🏓 Cancha: *${court}*\n👥 Invitados: *${hasGuests}*\n`;
 
-    if (hasGuests === 'Sí') {
-        summary += `Cantidad de Invitados: *${guestCount}*\n`;
-        guestDetails.forEach((guest, index) => {
-            summary += `Invitado ${index + 1}: ${guest}\n`;
-        });
-    }
+  if (hasGuests === 'Sí') {
+    resumen += `🔢 Cantidad de invitados: *${guestCount}*\n`;
+    guestDetails.forEach((guest, i) => {
+      resumen += `• Invitado ${i + 1}: ${guest}\n`;
+    });
+  }
 
-    summary += `
-    🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾
-    Gracias por la info!!! ❤️ Todo listo! Ahora podés comenzar a jugar‼️.
-    
-    * 🤔 Recordá, si todavía no pasaste, que si querés abonar en efectivo podes acercarte a la oficina y hacerlo. De lo contrario te lo podemos cargar por expensas! 📩
-    
-    * Este sistema NO REEMPLAZA a la reserva por PADELINK, si no la hiciste, hacela así nadie te pide la cancha 😡 mientras estes jugando 🏓.
-    
-    Gracias por elegirnos 😍😍!! Disfruten el partido!!!
-    
-    🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾🎾`;
+  resumen += `\n✅ ¡Gracias por la info! Todo listo para jugar. 🎾`;
 
-    message.reply(summary);
-
-    // Guardar los datos en Firebase después de enviar el resumen
-    const data = {
-        name,
-        lotNumber,
-        court,
-        hasGuests,
-        guestCount,
-        guestDetails
-    };
-    saveDataToFirebase(data);
+  message.reply(resumen);
+  saveToFirebase(user.responses);
 }
 
-// Función para guardar los datos en Firebase
-function saveDataToFirebase(data) {
-    const ref = db.ref('reservas');  // Usamos 'reservas' como referencia para almacenar las reservas
-    const newReservaRef = ref.push();
-    newReservaRef.set(data)
-        .then(() => console.log('Datos guardados en Firebase'))
-        .catch((error) => console.log('Error al guardar en Firebase: ', error));
+function saveToFirebase(data) {
+  const ref = db.ref('reservas');
+  ref.push(data)
+    .then(() => console.log('📦 Reserva guardada en Firebase'))
+    .catch((err) => console.error('❌ Error al guardar en Firebase:', err));
 }
-
-// Iniciar el cliente de WhatsApp
-client.initialize();
