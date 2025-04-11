@@ -1,23 +1,32 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, RemoteAuth } = require('whatsapp-web.js');
 const express = require('express');
 const qrcode = require('qrcode');
-const admin = require('firebase-admin');
+const { initializeApp, getStorage } = require('firebase-admin/app');
+const { getStorage: getFirebaseStorage } = require('firebase-admin/storage');
 const path = require('path');
 
-// 🔐 Cargar credenciales de Firebase desde la variable de entorno
-const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-
 // Inicializar Firebase
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: 'https://damibot-76f13-default-rtdb.firebaseio.com',
-});
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID,
+  measurementId: process.env.FIREBASE_MEASUREMENT_ID,
+};
 
-const db = admin.database();
+initializeApp(firebaseConfig);
 
-// Inicializar cliente de WhatsApp
+// Inicializar cliente de WhatsApp con autenticación remota utilizando Firebase Storage
 const client = new Client({
-  authStrategy: new LocalAuth(),
+  authStrategy: new RemoteAuth({
+    store: new FirebaseStorageStore({
+      firebaseStorage: getFirebaseStorage(),
+      sessionPath: 'sessions/whatsapp-session.json', // Ruta en Firebase Storage donde se almacenará la sesión
+    }),
+    backupSyncIntervalMs: 600000, // Sincronizar sesión cada 10 minutos
+  }),
 });
 
 // Inicializar servidor Express
@@ -57,7 +66,7 @@ client.on('ready', () => {
 
 client.initialize();
 
-// Variables y lógica del bot (tu lógica de respuesta del bot sigue igual)
+// Variables y lógica del bot
 let userResponses = {};
 
 client.on('message', (message) => {
@@ -156,24 +165,6 @@ function sendSummary(message) {
   const user = userResponses[from];
   const { name, lotNumber, court, hasGuests, guestCount, guestDetails } = user.responses;
 
-  let resumen = `🎾 *Detalle de la Reserva* 🎾\n\n🧍‍♂️ Nombre y Lote: *${name} ${lotNumber}*\n🏓 Cancha: *${court}*\n👥 Invitados: *${hasGuests}*\n`;
-
-  if (hasGuests === 'Sí') {
-    resumen += `🔢 Cantidad de invitados: *${guestCount}*\n`;
-    guestDetails.forEach((guest, i) => {
-      resumen += `• Invitado ${i + 1}: ${guest}\n`;
-    });
-  }
-
-  resumen += `\n✅ ¡Gracias por la info! Todo listo para jugar. 🎾`;
-
-  message.reply(resumen);
-  saveToFirebase(user.responses);
-}
-
-function saveToFirebase(data) {
-  const ref = db.ref('reservas');
-  ref.push(data)
-    .then(() => console.log('📦 Reserva guardada en Firebase'))
-    .catch((err) => console.error('❌ Error al guardar en Firebase:', err));
-}
+  let resumen = `🎾 *Detalle de la Reserva* 🎾\n\n🧍‍♂️ Nombre y Lote: *${name} ${lotNumber}*\n🏓 Can
+::contentReference[oaicite:0]{index=0}
+ 
