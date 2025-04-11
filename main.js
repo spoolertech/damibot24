@@ -25,6 +25,10 @@ let client = null;
 
 // Cliente de WhatsApp con autenticación remota (Firebase)
 const initializeClient = () => {
+  if (client) {
+    return;
+  }
+
   client = new Client({
     authStrategy: new RemoteAuth({
       store: new RemoteAuthStore({
@@ -236,27 +240,26 @@ app.get('/', (req, res) => {
 
 // Ruta para generar QR manualmente
 app.get('/generate-qr', async (req, res) => {
-  if (botRunning) {
-    return res.status(400).json({ error: 'El bot ya está corriendo.' });
+  if (!client) {
+    return res.status(400).json({ error: 'Por favor, inicializa el bot primero.' });
   }
 
-  initializeClient();
-  
-  client.on('qr', (qr) => {
-    qrCodeData = qr;
-    qrcode.toDataURL(qr, (err, qrImage) => {
+  if (qrCodeData) {
+    qrcode.toDataURL(qrCodeData, (err, qrImage) => {
       if (err) {
         return res.status(500).json({ error: 'Error generando QR.' });
       }
       res.json({ qrImage });
     });
-  });
+  } else {
+    res.status(400).json({ error: 'QR no disponible, esperando conexión a WhatsApp.' });
+  }
 });
 
 // Ruta para iniciar el bot
 app.get('/start-bot', (req, res) => {
-  if (!qrCodeData) {
-    return res.status(400).json({ error: 'Por favor, genera un QR primero.' });
+  if (!client) {
+    return res.status(400).json({ error: 'Por favor, inicializa el bot primero.' });
   }
 
   if (botRunning) {
