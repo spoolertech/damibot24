@@ -1,43 +1,22 @@
-const { Client, RemoteAuth } = require('whatsapp-web.js');
-const { initializeApp, applicationDefault, cert } = require('firebase-admin/app');
-const { getDatabase } = require('firebase-admin/database');
-const { Firestore } = require('firebase-admin/firestore');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
 const qrcode = require('qrcode');
 const path = require('path');
-const admin = require('firebase-admin');
-
-// Firebase config
-const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: 'https://damibot-76f13-default-rtdb.firebaseio.com',
-});
-
-const db = admin.database();
-const firestore = new Firestore();
 
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 
 let qrCodeData = null;
 
-// Cliente de WhatsApp con autenticación remota (Firebase)
+// Cliente de WhatsApp con autenticación local
 const client = new Client({
-  authStrategy: new RemoteAuth({
-    store: new RemoteAuthStore({
-      firestore: firestore,
-      backupSyncIntervalMs: 300000,
-    }),
-    clientId: "damibot-client",
-  }),
+  authStrategy: new LocalAuth(),
   puppeteer: {
     args: ['--no-sandbox'],
   },
 });
 
-// Ruta principal
+// Página principal con QR
 app.get('/', async (req, res) => {
   if (qrCodeData) {
     const qrImage = await qrcode.toDataURL(qrCodeData);
@@ -170,14 +149,6 @@ function sendSummary(message) {
   resumen += `\n✅ ¡Gracias por la info! Todo listo para jugar. 🎾`;
 
   message.reply(resumen);
-  saveToFirebase(user.responses);
-}
-
-function saveToFirebase(data) {
-  const ref = db.ref('reservas');
-  ref.push(data)
-    .then(() => console.log('📦 Reserva guardada en Firebase'))
-    .catch((err) => console.error('❌ Error al guardar en Firebase:', err));
 }
 
 // Iniciar servidor y cliente de WhatsApp
