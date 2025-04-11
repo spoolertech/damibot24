@@ -1,6 +1,6 @@
 const express = require('express');
 const qrcode = require('qrcode');
-const { Client, RemoteAuth } = require('whatsapp-web.js');
+const { Client, RemoteAuth, RemoteAuthStore } = require('whatsapp-web.js');  // Asegúrate de importar RemoteAuthStore
 const { initializeApp } = require('firebase-admin/app');
 const { getDatabase } = require('firebase-admin/database');
 const { Firestore } = require('firebase-admin/firestore');
