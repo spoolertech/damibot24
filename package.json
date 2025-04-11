@@ -11,6 +11,6 @@
     "firebase-admin": "^11.10.1",
     "path": "^0.12.7",
     "qrcode": "^1.5.1",
-    "whatsapp-web.js": "^1.23.0",
+    "whatsapp-web.js": "^1.23.0"
     }
 }
