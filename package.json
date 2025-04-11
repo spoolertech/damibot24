@@ -1,17 +1,28 @@
 {
-  "dependencies": {
-    "firebase-admin": "^13.2.0",
-    "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.27.0"
-  },
-  "name": "botjs",
+  "name": "whatsapp-bot",
   "version": "1.0.0",
+  "description": "Bot de WhatsApp.",
   "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node main.js",
+    "dev": "nodemon main.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "firebase",
+    "padel",
+    "reservas"
+  ],
+  "author": "Jhon Curry",
   "license": "ISC",
-  "description": ""
+  "dependencies": {
+    "express": "^4.17.1",
+    "qrcode": "^1.4.4",
+    "firebase-admin": "^11.10.1",
+    "whatsapp-web.js": "^1.23.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
 }
